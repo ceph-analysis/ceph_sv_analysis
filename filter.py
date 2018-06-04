@@ -4,7 +4,7 @@ import sys
 import argparse
 import cyvcf2
 import os
-import families
+import Families
 import variants
 
 ceph_vcf = "sv.pruned.re_svtyped.reclassed.filtered.gt50bp.allchr.CEPH.no_sname.vcf.gz"
@@ -25,7 +25,7 @@ parser.add_argument("-p", "--ped", help="ped file CEPH families",default=ceph_pe
 parser.add_argument("-f", '--family', help="report only de novos for family specified (by pedigree ID)")
 args = parser.parse_args()
 
-families = families.CreateDictFromPED(args.ped, True)
+families = Families.CreateFamilies(args.ped, True)
 
 variant_info = {}
 vcf = cyvcf2.VCF(os.path.expanduser(args.vcf))
@@ -40,14 +40,11 @@ for family_id in families:
 number = 0
 for variant in vcf:
     affected_counts = []
-#    number += 1
-#    if number % 10 != 0:
-#        continue
     affected_peds = set()
     for sample in vcf_samples:
         if variants.sample_has_variant(sample, variant, vcf_samples):
             for family_id in families:
-                if families[family_id].has_sample(sample):
+                if sample in families[family_id].sample_ids:
                     affected_peds.add(family_id)
     affected_counts.append(len(affected_peds))
     #if ((len(affected_peds)) == 2) or ((len(affected_peds)) == 1):
@@ -75,29 +72,20 @@ for ped_id in filtered1_variants_by_ped:
             sample = int(sample_list[1])
             #malformed sample IDs (I hope)
             if variants.sample_has_variant(sample, variant, vcf_samples):
-                gen = families[ped_id].check_generation(sample)
+                gen = families[ped_id].checkGeneration(sample)
                 affected_gens[gen].append(sample)
-#                if gen == "P0":dd
-#                    #a grandparent has this variant, so it's not de novo
-#                    in_P0 = False
-#                elif gen == "F1":
-#                    #a parent has this variant, so it could be de novo in the F1
-#                    in_F1 = True
-#                elif gen == "F2":
-#                    in_F2 = True
-#                    #a child has this variant, so it could be de novo in the F1 
 
         # if there are no affected grandparents, exactly one affected parent, and at least 1 affected child, it could be de novo
         if (len(affected_gens["P0"]) == 0) and \
                 (len(affected_gens["F1"]) == 1) and \
                 (len(affected_gens["F2"]) > 0):
             F1 = affected_gens["F1"][0]
-            #get gramma and grampaA
-            f1_ismom = (int(families[ped_id].mother[1]) == F1)
+            #get gramma and grampa
+            f1_ismom = (int(families[ped_id].f1_female) == F1)
             if f1_ismom:
-                P0s = families[ped_id].mgrandfather[1],families[ped_id].mgrandmother[1]
+                P0s = families[ped_id].p0_male_maternal,families[ped_id].p0_female_maternal
             else:
-                P0s = families[ped_id].pgrandfather[1],families[ped_id].pgrandmother[1]
+                P0s = families[ped_id].p0_male_paternal,families[ped_id].p0_female.paternal
 
             variant_entry = [
                 variant.CHROM,
@@ -115,7 +103,6 @@ for ped_id in filtered1_variants_by_ped:
             for F2 in affected_gens['F2']:
                 variant_entry.append(F2)
             filtered_variants2.append(variant_entry)
-            #filtered2_variants_by_ped[ped_id].append(variant)
             variant_count += 1
 for variant in filtered_variants2:
     print("\t".join([str(x) for x in variant]))
