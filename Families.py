@@ -3,270 +3,113 @@ from __future__ import print_function
 import sys
 
 class Family:
-#    family_id = ''
-#    mother = []
-#    father = []
-#    mgrandmother = []
-#    mgrandfather = []
-#    pgrandmother = []
-#    pgrandfather = []
-#    kids = []
-#    all_members = []
-
     def __init__(self, samples, pedigree):
-        #add to family
-        self.all_members = samples
+        self.family_id = pedigree
+        self.generations = Family.getGenerations(samples)
+
+        self.f1_male = '????'
+        self.f1_female = '????'
+        self.p0_male_paternal = '????'
+        self.p0_female_paternal = '????'
+        self.p0_male_maternal = '????'
+        self.p0_female_maternal = '????'
+
+        for f1 in self.generations['F1']:
+            #if paternal, set paternal p0s
+            if f1[4] == '1':
+                self.f1_male = f1[1]
+                if f1[2] != '0':
+                    self.p0_male_paternal = f1[2]
+                if f1[3] != '0':
+                    self.p0_female_paternal = f1[3]
+            #if maternal, set maternal p0s
+            else:
+                self.f1_female = f1[1]
+                if f1[2] != '0':
+                    self.p0_male_maternal = f1[2]
+                if f1[3] != '0':
+                    self.p0_female_maternal = f1[3]
+
+
+    @staticmethod
+    def getGenerations(samples):
+        generations = {'P0':[], 'F1':[], 'F2':[]}
         
-        
-        #scan for grandparents, using the assumption that the grandparents 
-        #will be the only samples without parent IDs
-        grandparents = []
+        #scan for grandparents (P0s)
+        #using the assumption that the grandparents 
+        #will be the only samples without IDs for either parent
         for sample in samples:
             if sample[2] == '0' and sample[3] == '0':
-                grandparents.append(sample)
-        #scan for parents
-        parents = []
+                generations['P0'].append(sample)
+        #scan for parents (F1s)
+        #using the assumption that they will have parent IDs in the P0s list
         for sample in samples:
-            for grandparent in grandparents:
-                if sample[2] == grandparent[1]:
-                    parents.append(sample)
-#        if len(grandparents) != 4:
-#            #print ("missing grandparent in pedigree: " + pedigree)
-#            return None
-#        if len(parents) != 2:
-#            #print ("missing parent in pedigree: " + pedigree)
-#            return None
-        try:
-            if parents[0][4] == '1':
-                self.father = parents[0]
-                self.mother = parents[1]
-            if parents[1][4] == '1':
-                self.father = parents[1]
-                self.mother = parents[0]
-        except:
-            print ("failed to add a parent")
+            for p0 in generations['P0']:
+                #if the sample's dad or mom is the current p0, it's an f1
+                if (sample[2] == p0[1] or sample[3] == p0[1]) and sample not in generations['F1']:
+                    generations['F1'].append(sample)
+        #scan for kids (F2s)
+        #using the assumption that they will have parent IDs in the F1s list 
+        for sample in samples:
+            for f1 in generations['F1']:
+                if (sample[2] == f1[1] or sample[3] == f1[1]) and sample not in generations['F2']:
+                    generations['F2'].append(sample)
+        return generations
+
+    @staticmethod
+    def extractFamiliesFromPedigree(samples):
+        generations = Family.getGenerations(samples)
         
-        try:
-            for gparent in grandparents:
-                if gparent[1] == self.father[2]:
-                    self.pgrandfather = gparent
-                elif gparent[1] == self.father[3]:
-                    self.pgrandmother = gparent
-                elif gparent[1] == self.mother[2]:
-                    self.mgrandfather = gparent
-                elif gparent[1] == self.mother[3]:
-                    self.mgrandmother = gparent
-        except:
-            print ("failed to add a grandparent")
+        families = {}
+        for f2 in generations['F2']:
+            #family_id is the ped id and both F1s
+            family_id = f2[0] + "_" + f2[2]+ "_" + f2[3]
+            if family_id not in families:
+                families[family_id] = []
+            families[family_id].append(f2)
 
-        self.kids = []
-        for sample in samples:
-            if sample not in grandparents and sample not in parents:
-                self.kids.append(sample)
-        self.family_id = pedigree
-
-#    def __init__(self, samples, pedigree):
-#        #add to family
-#        self.all_members = samples        
-#        
-#        #scan for grandparents, using the assumption that the grandparents 
-#        #will be the only samples without parent IDs
-#        self.generations = []
-#        self.couples = []
-#        self.siblings_by_mom = {}
-#        p0 = []
-#        for sample in samples:
-#            sample_dad = sample[2]
-#            sample_mom = sample[3]
-#            if sample_mom not in self.siblings_by_mom:
-#                self.siblings_by_mom[sample_mom] = []
-#            self.siblings_by_mom[sample_mom].append(sample[1])
-#            self.couples.append([sample_dad, sample_mom])
-#
-#            if sample[2] == '0' and sample[3] == '0':
-#                print (sample)
-#                p0.append(sample)
-#        self.generations.append(p0)
-#
-#        #scan to place samples in generations
-#        count_included = len(p0)
-#        current_gen_pos = 0
-#        while count_included < len(self.all_members):
-#            current_gen_samples = []
-#            current_gen_pos += 1
-#            for sample in samples:
-#                for prev_gen_sample in self.generations[current_gen_pos-1]:
-#                    if sample[2] == prev_gen_sample[1]:
-#                        current_gen_samples.append(sample)
-#                        count_included += 1
-#            self.generations.append(current_gen_samples)
-#        self.family_id = pedigree
-
-    def get_couple_by_sample_id(sample_id):
-        for couple in self.couples:
-            if sample_id in couple:
-                return couple
-        return sample_id
-
-    def couplize_generation(generation):
-        couples = set()
-        for sample in generation:
-            couples.add(self.get_couple_by_sample_id(sample))
-        return [couples]
-    
-    def get_gen_by_sample_id(sample_id):
-        for i in range(len(self.generations)):
-            if sample_id in self.generations[i]:
-                return i
-        return -1
-
-#    def pretty_print(self):
-#        if len(self.generations > 1):
-#            print ("prety-printing of less than 2-generation pedigrees is not yet supported")
-#            sys.exit(1)
-#        if len(self.generations > 3):
-#            print ("prety-printing of more than 3-generation pedigrees is not yet supported")
-#            sys.exit(1)
-#
-#        for generation  in self.generations:
-#            gen_couples = self.coupleize_generation(generation)
-#            for couple in gen_couples:
-#                
-#
-#        first_gen_string = 
-#        if len(self.generations) == 1:
-#            print ("\t".join(sel.generations[0]))
-#        elif len(self.generations) == 2:
-#
-#        
-#        for sample in 
-#
-#        def create_line(generation):
-#            spacer = ''
-#            line = ''
-#            odd = False
-#            for sample in generation:
-#                spacer += "  |   "
-#                if odd:
-#                    spacer += "  "
-#                    odd = !odd
-#                line += sample[1] + "    "
-#        overall_length = 8*len(self.generations[-1])-4
-#
-#        top_start = self.pgrandfather[1] + '    ' + self.pgrandmother[1]
-#        top_end = self.mgrandfather[1] + '    ' + self.mgrandmother[1]
-#        gap_len = max(overall_length - (len(top_start) + len(top_end)),4)
-#        top_str = top_start + " "*gap_len + top_end
-#
-#        spacer1 = "\n  |______|" + " "*(gap_len+4) + "|______|  "
-#        spacer1 += "\n      |" + " "*(gap_len+10) + "|      \n"
-#
-#        middle_start = "    " + self.father[1]
-#        middle_end = self.mother[1] + "    "
-#        gap_len = overall_length - (len(middle_start) + len(middle_end))
-#        middle_str = middle_start + " "*gap_len + middle_end
-#        
-#        spacer2 = "\n  ____|" + "_"*(gap_len+2) + "|____  \n  "
-#        
-#        for i in range(len(self.kids)):
-#            if i%2==0:
-#                spacer2 += "|       " 
-#            else:
-#                spacer2 += "|       "
-#        spacer2 += "\n"
-#
-#        
-#        return "Pedigree " + self.family_id + ":\n" \
-#                + top_str + spacer1 \
-#                + middle_str + spacer2 \
-#                + "    ".join([kid[1] for kid in self.kids]) + "\n"
-
-    def test(self):
-        passed_test = True
-        error_msg = []
-        # step one: make sure generations are there
-        if not len(self.mgrandmother) > 0:
-            error_msg.append("Missing maternal grandmother")
-            passed_test = False
-        if not len(self.mgrandfather) > 0:
-            error_msg.append("Missing maternal grandfather")
-            passed_test = False
-        if not len(self.pgrandmother) > 0:
-            error_msg.append("Missing paternal grandmother")
-            passed_test = False
-        if not len(self.pgrandfather) > 0:
-            error_msg.append("Missing paternal grandfather")
-            passed_test = False
-        if not len(self.mother) > 0:
-            error_msg.append("Missing mother")
-            passed_test = False
-        if not len(self.father) > 0:
-            error_msg.append("Missing father")
-            passed_test = False
-
-        if not passed_test:
-            error_msg.append("Family " + self.family_id + " failed test")
-            return error_msg
-
-        # step two: make sure relationships match
-        for kid in self.kids:
-            if kid[2] != self.father[1]:
-                passed_test = False
-                error_msg.append("Kid " + kid[1] +  " doesn't match father")
-            if kid[3] != self.mother[1]:
-                passed_test = False
-                error_msg.append ("Kid " + kid[1] +  " doesn't match mother")
-        if self.mother[2] != self.mgrandfather[1]:
-            error_msg.append ("Mother doesn't match maternal grandfather")
-            passed_test = False
-        if self.mother[3] != self.mgrandmother[1]:
-            error_msg.append ("Mother doesn't match maternal grandmother")
-            passed_test = False
-        if self.father[2] != self.pgrandfather[1]:
-            error_msg.append ("Father doesn't match maternal grandfather")
-            passed_test = False
-        if self.father[3] != self.pgrandmother[1]:
-            error_msg.append ("Father doesn't match maternal grandmother")
-            passed_test = False
-
-        if not passed_test:
-            error_msg.append ("Family " + self.family_id + " failed test")
-            return error_msg
-        return 1
-
+        for family_id in families:
+            parent_ids = family_id.split('_')[1:]
+            parents = []
+            for f1 in generations['F1']:
+                if f1[1] in parent_ids:
+                    parents.append(f1)
+            for f1 in parents:
+                for p0 in generations['P0']:
+                    if p0[1] in f1[2:4]:
+                        families[family_id].append(p0)
+            families[family_id] += parents
+        return families
 
     def __str__(self):
-        if self.test() != 1:
-            return "\nFailed test\n"
-        ret_str = "Paternal Grandfather: " + self.pgrandfather[1] + "\n" + \
-            "Paternal Grandmother: " + self.pgrandmother[1] + "\n" + \
-            "Maternal Grandfather: " + self.mgrandfather[1] + "\n" + \
-            "Maternal Grandmother: " + self.mgrandmother[1] + "\n" + \
-            "Father: " + self.father[1] + "\n" + \
-            "Mother: " + self.mother[1] + "\n" + \
-            "\n".join([("Child: " + kid[1]) for kid in self.kids])
-        return ret_str
+        output = self.family_id + "\n"
+        output += "Generations:\n"
+        for gen in self.generations:
+            output += gen + ":\n"
+            for sample in self.generations[gen]:
+                output += "\t".join(sample) + "\n"
+        return output
+
+
 
     def pretty_print(self):
-        if self.test() != 1:
-            return "\nFailed test\n"
-        overall_length = 8*len(self.kids)-4
+        overall_length = 8*len(self.generations['F2'])-4
 
-        top_start = self.pgrandfather[1] + '    ' + self.pgrandmother[1]
-        top_end = self.mgrandfather[1] + '    ' + self.mgrandmother[1]
+        top_start = self.p0_male_paternal + '    ' + self.p0_female_paternal
+        top_end = self.p0_male_maternal + '    ' + self.p0_female_maternal
         gap_len = max(overall_length - (len(top_start) + len(top_end)),4)
         top_str = top_start + " "*gap_len + top_end
 
         spacer1 = "\n  |______|" + " "*(gap_len+4) + "|______|  "
         spacer1 += "\n      |" + " "*(gap_len+10) + "|      \n"
 
-        middle_start = "    " + self.father[1]
-        middle_end = self.mother[1] + "    "
+        middle_start = "    " + self.f1_male
+        middle_end = self.f1_female + "    "
         gap_len = overall_length - (len(middle_start) + len(middle_end))
         middle_str = middle_start + " "*gap_len + middle_end
         
         spacer2 = "\n  ____|" + "_"*(gap_len+2) + "|____  \n  "
-        for i in range(len(self.kids)):
+        for i in range(len(self.generations['F2'])):
             if i%2==0:
                 spacer2 += "|       " 
             else:
@@ -277,33 +120,7 @@ class Family:
         return "Pedigree " + self.family_id + ":\n" \
                 + top_str + spacer1 \
                 + middle_str + spacer2 \
-                + "    ".join([kid[1] for kid in self.kids]) + "\n"
-
-    def has_sample(self, sample_id):
-        try:
-            sample_id = str(sample_id)
-        except:
-            return "Invalid sample ID"
-
-        for sample in self.all_members:
-            if sample_id == sample[1]:
-                return True
-        return False
-
-    def check_generation(self, sample_id):
-        try:
-            sample_id = str(sample_id)
-        except:
-            return "Invalid sample ID"
-        if not self.has_sample(sample_id):
-            return False
-        for sample in self.kids:
-            if sample_id == sample[1]:
-                return "F2"
-        if sample_id == self.father[1] or sample_id == self.mother[1]:
-            return "F1"
-        else:
-            return "P0"
+                + "    ".join([f2[1] for f2 in self.generations['F2']]) + "\n"
 
 
 def CreateDictFromPED(ped, remove_failed = False):
@@ -318,26 +135,8 @@ def CreateDictFromPED(ped, remove_failed = False):
 
     families = {}
     for pedigree in pedigrees:
-        family = Family(pedigrees[pedigree], pedigree)
-#        if remove_failed and family.test() != 1:
-#            continue
-        families[pedigree] = family
-    return families
-
-def CreateListFromPED(ped, remove_failed = False):
-    pedigrees = {}
-    with open(ped, 'r') as ped_file:
-        for line in ped_file:
-            fields = line.strip().split()
-            pedigree = fields[0]
-            if pedigree not in pedigrees:
-                pedigrees[fields[0]] = []
-            pedigrees[pedigree].append(fields)
-
-    families = []
-    for pedigree in pedigrees:
-        family = Family(pedigrees[pedigree], pedigree)
-        if remove_failed and family.test() != 1:
-            continue
-        families.append(family)
+        sub_pedigrees = Family.extractFamiliesFromPedigree(pedigrees[pedigree])
+        for family_id in sub_pedigrees:
+            family = Family(sub_pedigrees[family_id], pedigree)
+            families[family_id] = family
     return families
