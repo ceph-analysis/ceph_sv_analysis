@@ -4,6 +4,9 @@ import sys
 
 class Family:
     def __init__(self, samples, pedigree):
+        self.sample_ids = set()
+        for sample in samples:
+            self.sample_ids.add(sample[1])
         self.family_id = pedigree
         self.generations = Family.getGenerations(samples)
 
@@ -80,6 +83,12 @@ class Family:
                         families[family_id].append(p0)
             families[family_id] += parents
         return families
+    
+    def checkGeneration(self, sample_id):
+        for gen in self.generations:
+            for sample in self.generations[gen]:
+                if str(sample_id) == str(sample[1]):
+                    return gen
 
     def __str__(self):
         output = self.family_id + "\n"
@@ -123,7 +132,7 @@ class Family:
                 + "    ".join([f2[1] for f2 in self.generations['F2']]) + "\n"
 
 
-def CreateDictFromPED(ped, remove_failed = False):
+def CreateFamilies(ped, remove_failed = False):
     pedigrees = {}
     with open(ped, 'r') as ped_file:
         for line in ped_file:
