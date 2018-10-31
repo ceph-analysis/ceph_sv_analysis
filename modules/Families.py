@@ -4,9 +4,11 @@ import sys
 
 class Family:
     def __init__(self, samples, pedigree):
+        self.samples = {}
         self.sample_ids = set()
         for sample in samples:
             self.sample_ids.add(sample[1])
+            self.samples[sample[1]] = sample
         self.family_id = pedigree
         self.generations = Family.getGenerations(samples)
 
@@ -83,12 +85,82 @@ class Family:
                         families[family_id].append(p0)
             families[family_id] += parents
         return families
+     
+    def getValidF1Count(self):
+        count = 0
+        #if self.f1_male == '????' or self.f1_female == '????':
+        #    return count
+        if self.p0_male_paternal != '????' and self.p0_female_paternal != '????':
+            #can use the dad
+            if self.f1_male != '????':
+                count += 1
+        if self.p0_male_maternal != '????' and self.p0_female_maternal != '????':
+            if self.f1_female != '????':
+            #can use the mom 
+                count += 1
+        if count >= 1:
+            #if I get to here, I have at least the F1 parents
+            for sample in self.samples:
+                gen = self.checkGeneration(sample)
+                #there's at least one valid F2
+                if gen is not None and str(sample[1]) != "????" and gen == "F2":
+                    return count
+        return 0
+
+
+    def getValidF2Count(self):
+        count = 0
+        #if I comment out this block I get the same number of F2s as TomS, but I don't think it accurately reflects the number I consider
+        if self.f1_male == '????' or self.f1_female == '????':
+            #can't use any of them because missing a parent
+            return count
+        #if I get to here, I have at least the F1 parents
+        for sample in self.samples:
+            gen = self.checkGeneration(sample)
+            if gen is not None and str(sample[1]) != "????" and gen == "F2":
+                count += 1
+        return count
+   
+    def getValidP0Count(self):
+        count = 0
+        if self.f1_male != '????':
+            if self.p0_male_paternal != '????':
+                count += 1
+            if self.p0_female_paternal != '????':
+                count += 1
+        
+        if self.f1_female != '????':
+            if self.p0_male_maternal != '????':
+                count += 1
+            if self.p0_female_maternal != '????':
+                count += 1
+        return count
+ 
+    def hasSample(self, sample_id):
+        sample_id = str(sample_id)
+        for sample in self.sample_ids:
+            if sample_id == sample:
+                return True
+        return False
     
+    def checkDad(self, sample_id):
+        if sample_id not in self.samples:
+            return 0
+        return self.samples[sample_id][2]
+
+    def checkMom(self, sample_id):
+        if sample_id not in self.samples:
+            return 0
+        return self.samples[sample_id][3]
+
     def checkGeneration(self, sample_id):
         for gen in self.generations:
             for sample in self.generations[gen]:
                 if str(sample_id) == str(sample[1]):
                     return gen
+
+    def checkSex(self, sample_id):
+        return self.samples[sample_id][4]
 
     def __str__(self):
         output = self.family_id + "\n"
