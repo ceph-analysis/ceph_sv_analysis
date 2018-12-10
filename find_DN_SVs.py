@@ -17,6 +17,14 @@ import pandas as pd
 
 
 #########################################################################################################
+# define globals
+#########################################################################################################
+GT_STRONG = True
+GT_WEAK = True
+SU_STRONG = 3
+SU_WEAK = 0
+
+#########################################################################################################
 # define functions
 #########################################################################################################
 
@@ -37,23 +45,23 @@ def vcf_to_matrix(vcf_name):
         # need to get the support from either AO, PR+SR, or genotype
         if 'AO' in vcf:    #Smoove
             support_array = np.array([x[0] for x in variant.format("AO")])
-            strong_support = 4
-            weak_support = 0
+            strong_support = SU_STRONG
+            weak_support = SU_WEAK
         elif 'PR' in vcf or 'SR' in vcf:  #manta
             split_read_su = np.zeros(len(vcf.samples))
             if 'SR' in vcf and variant.format("SR") is not None:
-                split_read_su = np.array([x[0] for x in variant.format("SR")])
+                split_read_su = np.array([x[1] for x in variant.format("SR")])
 
             paired_end_su = np.zeros(len(vcf.samples))
             if 'PR' in vcf and variant.format("PR") is not None:
-                split_read_su = np.array([x[0] for x in variant.format("PR")])
+                paired_end_su = np.array([x[1] for x in variant.format("PR")])
             support_array = np.add(split_read_su, paired_end_su).astype(int)
-            strong_support = 4
-            weak_support = 0
+            strong_support = SU_STRONG
+            weak_support = SU_WEAK
         elif variant.genotypes:  #cnvnator
             support_array = [1 in x[:2] for x in variant.genotypes]
-            strong_support = True
-            weak_support = True
+            strong_support = GT_STRONG
+            weak_support = GT_WEAK
         else:
             print("No valid support field in VCF (checked for AO, PR, SR, GT)", file=sys.stderr)
             sys.exit()
@@ -109,6 +117,12 @@ parser.add_argument("-f",
     help="family specified (by pedigree ID)",
     required=True
 )
+parser.add_argument( 
+    '--outdir', 
+    help="directory where filtering output files (named with family ID) will be stored", 
+    type=str,
+    required=True
+)
 parser.add_argument("-c", 
     '--support_cutoff', 
     help="support cutoff (AO). If fewer reads support a call and GT is homref, no variant.", 
@@ -144,8 +158,9 @@ f1_support = extract_variants_by_samples(f1_support, generations['F1'], weak_sup
 
 #remove variants where no F1 or F2 sample has strong support
 f1_support = extract_variants_by_samples(f1_support, generations['F1'] + generations['F2'], strong_support)
-print (f1_support)
-print()
+#pd.set_option('display.max_rows', None)
+with open(os.path.join(args.outdir,args.family+"_f1.txt"), 'w') as outfile:
+    outfile.write(f1_support.to_string())
 
 #########################################################################################################
 # find F2 de novos
@@ -157,4 +172,5 @@ f2_support = exclude_variants_by_samples(variant_support, generations['P0']+gene
 # remove variants that don't have even weak support in the F2 generation (this shouldn't be changing anything probably)
 f2_support = extract_variants_by_samples(f2_support, generations['F2'], weak_support)
 
-print (f2_support)
+with open(os.path.join(args.outdir,args.family+"_f2.txt"), 'w') as outfile:
+    outfile.write(f2_support.sort_index().to_string())
